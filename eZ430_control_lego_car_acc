@@ -1,0 +1,357 @@
+///////////////////////////////////////////////////////////////////////////////
+//
+// additonal code added to control arduino pin(in my case a small car) using watch feedback
+//arduino pin 4,5,6 control using acceloremetr
+//watch button: #=off, *=on, ^=calibrate 
+//by Nir Adler
+//
+// An Arduino sketch, for Arduino with USB host to demonstrate
+// wireless control from a Texas Instruments eZ430 Chronos watch.
+//
+// Requires the USB Host library version 2
+// (https://github.com/felis/USB_Host_Shield_2.0).
+//
+// If you have Arduino Mega ADK or Teensy, please make sure to comment
+// out the proper line in the avrpins.h library file.
+//
+// (C) 2013 by Pascal Bauermeister. This code is in the Public Domain.
+//
+
+///////////////////////////////////////////////////////////////////////////////
+
+#include <cdcacm.h>
+
+// These headers get indirectly included:
+//#include <avrpins.h>
+//#include <usbhost.h>
+//#include <printhex.h>
+
+//#include <max3421e.h>
+//#include <usb_ch9.h>
+//#include <Usb.h>
+//#include <usbhub.h>
+//#include <avr/pgmspace.h>
+//#include <address.h>
+
+//#include <message.h>
+//#include <hexdump.h>
+//#include <parsetools.h>
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Please set to 1 for maximum debug messages over serial console:
+#define DEBUG 0
+boolean drive = false;
+//calibrate
+int cx =0;
+int cy =0;
+int cz =0;
+#if DEBUG
+#define DPRINT       Serial.print
+#define DPRINTLN     Serial.println
+#define DPRINTHEX(x) PrintHex(x, 0x80)
+#else
+#define DPRINT       if(0) Serial.print
+#define DPRINTLN     if(0) Serial.println
+#define DPRINTHEX(x) if(0) PrintHex(x, 0x80)
+#endif
+
+// Regular messages over serial console
+#define PRINT       Serial.print
+#define PRINTLN     Serial.println
+#define PRINTHEX(x) PrintHex(x, 0x80)
+//#define PRINTHEX PrintHex
+
+///////////////////////////////////////////////////////////////////////////////
+// USB ACM initializer
+
+class ACMAsyncOper : public CDCAsyncOper
+{
+public:
+  virtual uint8_t OnInit(ACM *pacm);
+};
+
+uint8_t ACMAsyncOper::OnInit(ACM *pacm)
+{
+  uint8_t rcode = 0;
+  
+  // Set DTR=1 and RTS=1:
+  rcode = pacm->SetControlLineState(3);
+
+  if (rcode) {
+    ErrorMessage<uint8_t>(PSTR("SetControlLineState"), rcode);
+    return rcode;
+  }
+
+  LINE_CODING lc;
+  lc.dwDTERate = 115200;	
+  lc.bCharFormat = 0;
+  lc.bParityType = 0;
+  lc.bDataBits = 8;	
+	
+  rcode = pacm->SetLineCoding(&lc);
+
+  if (rcode)
+    ErrorMessage<uint8_t>(PSTR("SetLineCoding"), rcode);
+
+  return rcode;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USB objects
+
+USB Usb;
+ACMAsyncOper AsyncOper;
+ACM Acm(&Usb, &AsyncOper);
+
+///////////////////////////////////////////////////////////////////////////////
+// Arduino setup
+
+void setup()
+{
+  Serial.begin( 115200 );
+  Serial.println("Start");
+
+  if (Usb.Init() == -1)
+    Serial.println("OSCOKIRQ failed to assert");
+
+  delay(200);
+  pinMode(6,OUTPUT);
+  digitalWrite(6,LOW);
+  pinMode(5,OUTPUT);
+  digitalWrite(5,LOW);
+  pinMode(4,OUTPUT);
+  digitalWrite(4,LOW);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TI eZ430 Chronos commands
+
+uint8_t AP_ON_COMMAND[]    = { 0xFF, 0x07, 0x03 };
+uint8_t ACC_DATA_REQUEST[] = { 0xFF, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00 };
+
+// The states of our program
+#define STATE_AP_OFF             0
+#define STATE_IDLE               1
+#define STATE_WAIT_ACC_RESPONSE  2
+byte state = STATE_AP_OFF;
+
+///////////////////////////////////////////////////////////////////////////////
+// TI eZ430 Chronos frame handling
+
+void print_frame(char* prefix, uint16_t len, uint8_t* buf, char* postfix)
+{
+  PRINT(prefix);
+  for(uint16_t i=0; i<len; i++ ) {
+    PRINTHEX(buf[i]);
+    PRINT(" ");
+  }
+  PRINT(" #");
+  PRINT(len);
+  PRINT(postfix);
+}
+
+boolean send_frame(int len, uint8_t* frame)
+{
+  uint8_t rcode;
+
+  if (DEBUG) {
+    print_frame("-> ", len, frame, "\r\n");
+  }
+
+  rcode = Acm.SndData(len, frame);
+  if (rcode) {
+    ErrorMessage<uint8_t>(PSTR("SndData"), rcode);
+    return false;
+  }
+  else {
+    return true;
+  }
+}
+
+boolean get_frame(uint8_t* buf, uint16_t *len)
+{
+  uint8_t rcode;
+  rcode = Acm.RcvData(len, buf);
+  if (rcode && rcode != hrNAK) {
+    ErrorMessage<uint8_t>(PSTR("Ret"), rcode);
+    return false;
+  }
+
+  if(DEBUG) {
+    if (*len) //more than zero bytes received
+      print_frame("<- ", *len, buf, "\r\n");
+    else
+      PRINTLN("<no data>");
+  }
+
+  return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Arduino application functions
+
+void loop()
+{
+  Usb.Task();
+
+  if (!Acm.isReady())
+    return;
+
+  switch (state) {
+
+  case STATE_AP_OFF:
+    Serial.println("Turning AP on...");
+    if (!send_frame(sizeof(AP_ON_COMMAND), AP_ON_COMMAND)) {
+      error("ERROR AP_ON");
+      return;
+    }
+    PRINTLN("AP on. Please make sure the watch is in 'ACC' mode, and sending.");
+    state = STATE_IDLE;
+    break;
+
+  case STATE_IDLE:
+    DPRINT("Req acc: ");
+    if (!send_frame(sizeof(ACC_DATA_REQUEST), ACC_DATA_REQUEST)) {
+      error("ERROR REQ");
+      return;
+    }
+    state = STATE_WAIT_ACC_RESPONSE;
+    break;
+
+  case STATE_WAIT_ACC_RESPONSE:
+    DPRINT("Get acc: ");
+    uint8_t  buf[64];
+    uint16_t rcvd = 64;
+    if (!get_frame(buf, &rcvd)) {
+      error("ERROR RESP");
+      return;
+    }
+    if (rcvd==7) {
+      byte type = (byte)buf[3];
+      int8_t x = (int8_t)buf[4];
+      int8_t y = (int8_t)buf[5];
+      int8_t z = (int8_t)buf[6];
+
+      switch (type) {
+      case 0x01:
+        print_frame("<- ", rcvd, buf, " \t");
+        PRINT("X,Y,Z =\t");
+        PRINT(x);
+        PRINT("\t");
+        PRINT(y);
+        PRINT("\t");
+        PRINTLN(z);
+        if(drive==true){
+        checkY(y);
+        checkX(x);
+        checkZ(z);
+        }
+        break;
+        
+        case 0x11:
+        print_frame("<- ", rcvd, buf, " \t");
+        PRINTLN("\t\t\t\tButton *");
+		drive=true;
+        break;
+
+      case 0x21:
+        print_frame("<- ", rcvd, buf, " \t");
+        PRINTLN("\t\t\t\tButton #");
+        drive=false;
+        break;
+
+      case 0x31:
+        print_frame("<- ", rcvd, buf, " \t");
+        PRINTLN("\t\t\t\tButton ^");
+		calibrateAcc(x,y,z);
+        break;
+
+      case 0xFF:
+        break;
+
+      default:
+        print_frame("<- ", rcvd, buf, " \t");
+        PRINTLN("???");
+		
+      }
+      state = STATE_IDLE;
+    }
+  }
+}
+
+/* Sometimes there are errors when warm resetting the Arduino. Maybe
+   we should power down + up the Maxim chip to cold reboot the AP. But
+   for now we just warm-reboot the Arduino, it ends up by working
+   after a few times... */
+void error(char* text)
+{
+  Serial.print("### ");
+  Serial.println(text);
+  delay(1000);
+
+  Serial.println("Rebooting...");
+  void(* resetFunc) (void) = 0; //declare reset function @ address 0
+  resetFunc();  //call reset
+
+  while (1) // practically dead code
+    delay(1000);
+}
+void f() {//forword
+  digitalWrite(6,HIGH);
+  digitalWrite(5,HIGH);
+  digitalWrite(4,LOW);
+  delay(500);
+    digitalWrite(6,LOW);
+  digitalWrite(5,LOW); 
+}
+void r() {//right
+    digitalWrite(6,LOW);
+  digitalWrite(5,HIGH);
+  digitalWrite(4,LOW);
+  delay(500);
+  digitalWrite(5,LOW);
+}
+void l() {//left
+    digitalWrite(5,LOW);
+  digitalWrite(4,LOW);
+    digitalWrite(6,HIGH);
+    delay(500);
+     digitalWrite(6,LOW);
+}
+void s() {//reverse
+  digitalWrite(6,LOW);
+  digitalWrite(5,LOW);
+  digitalWrite(4,HIGH);
+  delay(450);
+  digitalWrite(4,LOW);
+}
+void calibrateAcc(int x,int y, int z) {
+  cx=x;
+  cy=y;
+  cz=z;
+}
+void checkX(int x){
+  if (x < cx) { 
+    if(abs(cx-x) >25) { 
+    f(); }
+}
+  if (x > cx) { 
+    if(abs(x-cx) >28) { 
+      s(); }
+  }
+}
+  void checkY(int y){
+  if (y < cy) { 
+  if(abs(cy-y) >28) {
+  l(); } }
+  if (y> cy) { 
+  if(abs(y-cy) >28) {
+  r();}
+  }
+  }
+  void checkZ(int z){
+
+  }
+
+  
