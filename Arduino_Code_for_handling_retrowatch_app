@@ -1,0 +1,77 @@
+/*This code optimized to work with the retrowatch app
+https://github.com/godstale/retrowatch/tree/master/RetroWatch_Android
+the code knows to handle incoming messgaes, and save the last 10 incoming message for later use.
+by  Nir Adler at 20.2.14
+*/
+#include <SoftwareSerial.h>
+SoftwareSerial BTSerial(2, 3); // bluetooth
+String msg="";
+String msgBuf[10]= {"", "", "", "", "", "", "", "", "", ""};
+int c=0;//buf index
+boolean isBuffull = false;
+
+void setup()  
+{
+  // Open serial communications and wait for port to open:
+  Serial.begin(57600);
+  BTSerial.begin(9600);
+/* while (!Serial) {//debug
+    ; // wait for serial port to connect. Needed for Leonardo only
+     Serial.println("Setup");
+  }*/
+  Serial.println("Setup End");
+}
+
+void loop() // run over and over
+{
+   if (Serial.available()) {
+    char Char = Serial.read();
+    getSerial(Char);
+   }
+  
+  if (BTSerial.available()) {
+    char val = BTSerial.read();
+  if( (val == '\r') || (val == '\n') || (0 == int(val)) || (1 == int(val))  ){
+    if(msg.length() >1){
+    //Serial.println(msg); //debug
+    msgBuf[c] = msg;
+    if(c==9){c=0;isBuffull = true;}
+    else{c++;}
+    }
+    // Serial.print("length: ");//debug
+   //Serial.println(msg.length());//debug
+    msg="";
+  }
+  else {
+    //Serial.print(val);//debug
+    //Serial.print("=");//debug
+  //  Serial.println(int(val));//debug
+       if( (val >=' ') && (val <='z') ){
+            msg=msg+val;
+        }
+    }
+  }
+}
+
+void printmsgBuf(){//print msgbuffer to serial
+  for(int i =0;i<10;i++){
+    if(msgBuf[i] != ""){
+    Serial.println(msgBuf[i]);
+    }
+  }
+}
+
+void getSerial(char Char){
+  switch(Char){
+    case 'l':
+    printmsgBuf();
+    break;
+    case 'c':
+    Serial.println(msg);
+    break;
+    case 'i':
+    Serial.println(c);
+    break;
+  }
+}
+    
