@@ -1,0 +1,138 @@
+/*
+This project performs control of my computer by infrared remote control in my case,
+my samsung TV remote, but this can be done with any other remote,you will only need to change the appropriate codes.
+you will get the code from the serial monitor (any unknown IR code will shown in the serial monitor you can save this code for later and change the sketch acording this codes)
+this verstion write by Nir Adler at 21.2.14 , you can check my github for updates : https://github.com/niradler/Arduino
+video : http://youtu.be/E3wLLXuFxeA
+*/
+#include <IRremote.h>
+
+const int RECV_PIN = 4;
+const int led =3;
+
+long int power[] = {-456322552, -902702523, -189126264 };           
+long int up[] = {-800261024, -1033113532 };                 
+long int down[] = {1641747682,  -989874618};               
+long int right[] = {1400905448, 116954692 };  
+long int left[] = { 1972149634, 1463913437 };  
+long int enter[] = { 541477668, -1963903704 }; 
+long int esc[] = {1011888670, 158659426, 158659426};
+long int returnkey[] = {-1657015714, 1003313352 };
+
+IRrecv irrecv(RECV_PIN);
+
+decode_results results;
+
+void setup()
+{
+  Serial.begin(9600);
+  Keyboard.begin();
+  irrecv.enableIRIn(); // Start the receiver
+  pinMode(led, OUTPUT);      // sets the digital pin as output
+  digitalWrite(led,LOW);
+  delay(100);
+  while (!Serial) {//debug
+      Serial.println("Remote Ready");
+  }
+}
+
+void loop() {
+  if (irrecv.decode(&results)) {
+    
+    long int decCode = results.value;
+      if(scanIR(decCode) ==false) {
+        if(decCode != -1){
+          digitalWrite(led,HIGH);
+          Serial.print("IR code is unknown: ");
+          Serial.println(decCode);
+        }
+      }
+      else{ digitalWrite(led,LOW);}
+
+    irrecv.resume(); // Receive the next value
+  }
+}
+
+boolean scanIR (long int ircode) {
+  for(int i=0; i < (sizeof(up) / sizeof(long int));i++) {
+    if(up[i] == ircode) {
+       Serial.print("up:");
+      Serial.println(ircode);
+    keyPress(KEY_UP_ARROW);
+      return true;
+    }
+  }
+  
+  for(int i=0; i < (sizeof(down) / sizeof(long int));i++) {
+    if(down[i] == ircode) {
+       Serial.print("down:");
+      Serial.println(ircode);
+     keyPress(KEY_DOWN_ARROW);
+      return true;
+     
+    }
+  }
+  
+  for(int i=0; i < (sizeof(right) / sizeof(long int));i++) {
+    if(right[i] == ircode) {
+        Serial.print("right:");
+      Serial.println(ircode);
+      keyPress(KEY_RIGHT_ARROW);
+      return true;
+    
+    }
+  }
+  
+  for(int i=0; i<(sizeof(left) / sizeof(long int));i++) {
+    if(left[i] == ircode) {
+      Serial.print("left:");
+      Serial.println(ircode);
+      Keyboard.press(KEY_LEFT_ARROW);
+      keyPress(KEY_LEFT_ARROW);
+      return true;
+    }
+  }
+  
+  for(int i=0; i<(sizeof(enter) / sizeof(long int));i++) {
+    if(enter[i] == ircode) {
+       Serial.print("enter:");
+      Serial.println(ircode);
+      keyPress(KEY_RETURN);
+      return true;
+    }
+  }
+  
+  for(int i=0; i < (sizeof(power) / sizeof(long int)); i++) {
+    if(power[i] == ircode) {
+       Serial.print("wakeup:");
+      Serial.println(ircode);
+    USBDevice.wakeupHost();
+      delay(50);
+      return true;
+    }
+  }
+  for(int i=0; i<(sizeof(esc) / sizeof(long int));i++) {
+    if(esc[i] == ircode) {
+       Serial.print("esc:");
+      Serial.println(ircode);
+       keyPress(KEY_ESC);
+      return true;
+    }
+  }
+  for(int i=0; i < (sizeof(returnkey) / sizeof(long int)); i++) {
+    if(returnkey[i] == ircode) {
+       Serial.print("wakeup:");
+      Serial.println(ircode);
+    USBDevice.wakeupHost();
+      delay(50);
+      return true;
+    }
+  }
+  
+  return false;
+}
+void keyPress(int key){
+  Keyboard.press(key);
+  delay(100);
+   Keyboard.releaseAll();
+}
