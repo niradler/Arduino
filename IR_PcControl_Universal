@@ -1,0 +1,182 @@
+/*
+This project performs control of my computer by infrared remote control in my case,
+my samsung TV remote, but this can be done with any other remote,after connectiing the hardware and loading the software, open the serial monitor and push the remote button that you wont to configure(any unknown IR code will shown in the serial and save function will ask you to save the code for you)
+this verstion write by Nir Adler at 11.3.14 , this is not the final verstion and you can check my github for updates : https://github.com/niradler/Arduino
+video : http://youtu.be/E3wLLXuFxeA
+*/
+#include <IRremote.h>
+
+const int RECV_PIN = 4;
+const int led =3;
+
+long int wakeup=0;           
+long int up=752;                 
+long int down=2800;               
+long int right=3280;  
+long int left= 720;  
+long int enter=2672; 
+long int esc=0;
+
+long int lastdecCode=0;
+IRrecv irrecv(RECV_PIN);
+
+decode_results results;
+
+void setup()
+{
+  Serial.begin(9600);
+  Keyboard.begin();
+  irrecv.enableIRIn(); // Start the receiver
+  pinMode(led, OUTPUT);      // sets the digital pin as output
+  digitalWrite(led,LOW);
+  delay(100);
+  while (!Serial) {//debug
+      ;
+  }
+  Serial.flush();
+  Serial.println("Remote Setup");
+}
+
+void loop() {
+  if (irrecv.decode(&results)) {
+    
+    long int decCode = results.value;
+      if(scanIR(decCode) ==false) {
+        if(decCode != -1&&decCode!=lastdecCode){
+          lastdecCode=decCode;
+          digitalWrite(led,HIGH);
+          Serial.print("IR code is unknown: ");
+          Serial.println(decCode);
+           Serial.println("Do you like to save this IR code? (y/n)?");
+          if(selection()==true){
+          if(saveIR(decCode)==true){Serial.println("New IR code saved!");}
+          else{Serial.println("Failed to save!!");}
+        }
+          else{Serial.println("you choose not to save the IR code");}
+        }
+      }
+      else{ digitalWrite(led,LOW);}
+
+    irrecv.resume(); // Receive the next value
+  }
+}
+
+boolean scanIR (long int ircode) {
+    if(up == ircode) {
+       Serial.print("up:");//debug
+      Serial.println(ircode);
+    keyPress(KEY_UP_ARROW);
+      return true;
+    }
+
+    if(down == ircode) {
+       Serial.print("down:");//debug
+      Serial.println(ircode);
+     keyPress(KEY_DOWN_ARROW);
+      return true;
+    }
+
+    if(right == ircode) {
+        Serial.print("right:");//debug
+      Serial.println(ircode);
+      keyPress(KEY_RIGHT_ARROW);
+      return true;
+        }
+
+    if(left== ircode) {
+      Serial.print("left:");//debug
+      Serial.println(ircode);
+      Keyboard.press(KEY_LEFT_ARROW);
+      keyPress(KEY_LEFT_ARROW);
+      return true;
+    }
+
+    if(enter == ircode) {
+       Serial.print("enter:");//debug
+      Serial.println(ircode);
+      keyPress(KEY_RETURN);
+      return true;
+    }
+
+    if(wakeup == ircode) {
+       Serial.print("wakeup:");//debug
+      Serial.println(ircode);
+   // USBDevice.wakeupHost();
+      delay(50);
+      return true;
+    }
+
+    if(esc== ircode) {
+       Serial.print("esc:");
+      Serial.println(ircode);
+       keyPress(KEY_ESC);
+      return true;
+    }
+  return false;
+}
+
+void keyPress(int key){
+  Keyboard.press(key);
+  delay(100);
+   Keyboard.releaseAll();
+}
+
+boolean selection(){
+  Serial.flush();
+  while(Serial.available()) {
+    char input = Serial.read();
+    switch(input){
+      case 'y':
+      Serial.println("Yes");//debug
+      return true;
+      break;
+      case 'n':
+      Serial.println("No");//debug
+      return false;
+      break;
+    }
+  }
+}
+
+boolean saveIR(long int ircode){
+   Serial.println("Please choose function: \n1. wakeupKey \n2. up \n3. down \n4. right \n5. left \n6. enter \n7. escape");
+   while(Serial.available()){
+    char Char = Serial.read();
+    if(Char >'0' && Char<'8'){
+    switch(Char){
+      case '1':
+      wakeup=ircode;
+      return true;
+      break;
+      case '2':
+       up=ircode;
+       return true;
+      break;
+      case '3':
+       down=ircode;
+       return true;
+      break;
+      case '4':
+       right=ircode;
+       return true;
+      break;
+      case '5':
+       left=ircode;
+       return true;
+      break;
+      case '6':
+       enter=ircode;
+       return true;
+      break;
+      case '7':
+       esc=ircode;
+       return true;
+      break;
+      default:
+      ;
+    }//end switch 
+  }//end if
+  else{Serial.println("Unknown selection, please choose again"); saveIR(ircode);}
+  }//end while
+  return false;
+}
