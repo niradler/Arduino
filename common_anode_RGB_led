@@ -1,0 +1,28 @@
+ switch (ledcolor) {
+    case 6: //if ledcolor equals 0 then the led will turn red
+    analogWrite(red, 51);
+    break;
+    case 1: //if ledcolor equals 1 then the led will turn green
+    digitalWrite(green, LOW);
+    break;
+    case 4: //if ledcolor equals 2 then the led will turn blue
+    digitalWrite(blue, LOW);
+    break;
+    case 2: //if ledcolor equals 3 then the led will turn yellow
+    analogWrite(red, 95);
+    digitalWrite(green, LOW);
+    break;
+    case 3: //if ledcolor equals 4 then the led will turn cyan
+    analogWrite(red, 168);
+    digitalWrite(blue, LOW);
+    break;
+    case 5: //if ledcolor equals 5 then the led will turn magenta
+    digitalWrite(green, LOW);
+    digitalWrite(blue, LOW);
+    break;
+    case 0: //if ledcolor equals 6 then the led will turn white
+    analogWrite(red, 155);
+    digitalWrite(green, LOW);
+    digitalWrite(blue, LOW);
+    break;
+    }
