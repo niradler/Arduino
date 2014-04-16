@@ -1,0 +1,35 @@
+int praseInt(String msg, int s, int e){
+  String subMsg=msg;
+  subMsg= msg.substring(s,e+1);
+//  Serial.println("substring from num to num: " + subMsg);
+  return praseInt(subMsg);
+}
+int praseInt(String msg, int s){
+  String subMsg=msg;
+   Serial.println(subMsg);
+ subMsg= msg.substring(s);
+ //Serial.println("substring from num to end: " + subMsg);
+  return praseInt(subMsg);
+}
+long int praseInt(String stringToInt){
+  String msg = "";
+  msg=stringToInt;
+  long int num =0;
+int msgLength = msg.length();
+  for(int i=0;i<msgLength;i++){
+      if(msg.charAt(i)>='0' && msg.charAt(i)<='9'){
+        msg= msg.substring(i);
+         msgLength = msg.length()+1;
+           char intBuffer[msgLength];
+          msg.toCharArray(intBuffer,msgLength);
+          msg=intBuffer;
+          //Serial.println("get int from: " + msg);
+         num = atoi(intBuffer);
+         break;
+      } 
+  }
+  if(num>29999 || num <0){
+    num=-1;
+  }
+  return num ;
+}
