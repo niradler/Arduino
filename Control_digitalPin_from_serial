@@ -1,0 +1,119 @@
+/*
+control digital pin from serial port or sw serial in my case bluetooth model, the sw control pins 4-13.
+to control the pin you just need to send by serial the number of the pin from 4-13.
+by  Nir Adler 12/6/14
+ */
+#include <SoftwareSerial.h>
+
+const int tx=3;
+const int rx=2;
+int pins[10];
+int index=0;
+SoftwareSerial BTSerial(rx, tx); // RX, TX
+String msg="";
+void setup()  
+{
+  Serial.begin(57600);
+  BTSerial.begin(9600);
+  //set the pin to output
+  pinMode(4,OUTPUT);
+  pinMode(5,OUTPUT);
+  pinMode(6,OUTPUT);
+  pinMode(7,OUTPUT);
+  pinMode(8,OUTPUT);
+  pinMode(9,OUTPUT);
+  pinMode(10,OUTPUT);
+  pinMode(11,OUTPUT);
+  pinMode(12,OUTPUT);
+  pinMode(13,OUTPUT);
+  Serial.println("Setup End");
+}
+
+void loop() {
+  //get the number from serial port
+  if (Serial.available()) {
+    char Char = Serial.read();
+    if( (Char == '\r') || (Char == '\n') ){
+      if(msg.length() >1){
+       int num = praseInt(msg);
+       changeDigitalPinState(num);
+      }
+      msg="";
+    }
+    else {
+      if( (Char>=' ') && (Char <='z') ){
+        msg=msg+Char;
+      }
+    }
+  }
+  //get the number from sw serial in my case blutooth model
+  if (BTSerial.available()) {
+    char val = BTSerial.read();
+    if( (val == '\r') || (val == '\n') || (0 == int(val)) || (1 == int(val))  ){
+      if(msg.length() >1){
+        int num = praseInt(msg);
+        changeDigitalPinState(num);
+      }
+      msg="";
+    }
+    else {
+      if( (val >=' ') && (val <='z') ){
+        msg=msg+val;
+      }
+    }
+  }
+}
+
+//convert the from string to int
+int praseInt(String stringToInt){
+  String msg = "";
+  msg=stringToInt;
+ int num =0;
+  int msgLength = msg.length();
+  for(int i=0;i<msgLength;i++){
+    if(msg.charAt(i)>='0' && msg.charAt(i)<='9'){
+      msg= msg.substring(i);
+      msgLength = msg.length()+1;
+      char intBuffer[msgLength];
+      msg.toCharArray(intBuffer,msgLength);
+      msg=intBuffer;
+      num = atoi(intBuffer);
+      break;
+    } 
+  }
+  if(num>29999 || num <0){
+    num=-1;
+  }
+  return num ;
+}
+//change the state of given pin numer high/low
+void changeDigitalPinState(int d){
+boolean pinState = checkIndex(d);
+  digitalWrite(d,pinState);
+  Serial.print("digital pin ");
+  Serial.print(d);
+  if(pinState){Serial.println(" is on");}
+  else{Serial.println(" is off");}
+}
+//check if this pin is high
+boolean checkIndex(int d){
+  if(index<0||index>9){
+    Serial.println("index is out of 0-9");
+    index=0;
+  }
+  for(int i=0;i<10;i++){
+    if(pins[i]==d){
+      pins[i]=0;
+    return false;}
+  }
+  index=lookForFreeIndex();
+  pins[index]=d;
+  return true;
+}
+//return the number of a free index to save pin state
+int lookForFreeIndex(){
+   for(int i=0;i<10;i++){
+    if(pins[i]==0){return i;}
+   }
+     return 0; 
+}
