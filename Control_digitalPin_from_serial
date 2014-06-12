@@ -2,6 +2,7 @@
 control digital pin from serial port or sw serial in my case bluetooth model, the sw control pins 4-13.
  to control the pin you just need to send by serial the number of the pin from 4-13.
  To get the list of activated pin, send 's' letter.
+ http://youtu.be/WFcEYJj3TH8
  by  Nir Adler 12/6/14
  */
 #include <SoftwareSerial.h>
